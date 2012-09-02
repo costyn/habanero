@@ -26,7 +26,7 @@ OneWire ds(ONE_WIRE_BUS); // DS18x20 Temperature chip i/o One-wire
 
 //Tempsensor variables
 byte address0[8] = {0x28, 0xD5, 0x34, 0x9A, 0x03, 0x00, 0x00, 0xB4};
-byte address1[8] = {0x28, 0x4F, 0x1F, 0x9A, 0x04, 0x00, 0x00, 0x42};
+byte address1[8] = {0x28, 0x4F, 0x1F, 0x9A, 0x03, 0x00, 0x00, 0x42};
 
 int temp0 = 0, temp1 = 0 ;
 
@@ -39,6 +39,14 @@ int hour = 0 , minute = 0 , second = 0, oldsecond = 0;
 char latbuf[12] = "0", lonbuf[12] = "0", altbuf[12] = "0";
 long int ialt = 123;
 int numbersats = 99;
+
+// Voltage divider stuff:
+const int voltPin = 3;
+float denominator;
+int resistor1 = 9790;
+int resistor2 = 2157;
+float vccVoltage = 3.4;
+char voltbuf[4] = "0";
 
  
 //Setup radio on SPI with NSEL on pin 10
@@ -360,6 +368,8 @@ void setup()
   setupGPS();
   
   setupRadio() ;
+
+  denominator = (float)resistor2 / (resistor1 + resistor2);
 }
 
 void loop() { 
@@ -412,8 +422,14 @@ void loop() {
     temp1 = getTempdata(address1);
 
     numbersats = gps.satellites();
+
+    float voltage;
+    voltage = analogRead(voltPin);
+    voltage = (voltage / 1024) * vccVoltage;
+    voltage = voltage / denominator;
+    dtostrf(voltage,4,2,voltbuf); // convert to string
     
-    n=sprintf (superbuffer, "$$HYPERION,%d,%02d:%02d:%02d,%s,%s,%ld,%d,%d,%d,%d", count, hour, minute, second, latbuf, lonbuf, ialt, numbersats, navmode, temp0, temp1 );
+    n=sprintf (superbuffer, "$$HYPERION,%d,%02d:%02d:%02d,%s,%s,%ld,%d,%d,%d,%d,%s", count, hour, minute, second, latbuf, lonbuf, ialt, numbersats, navmode, temp0, temp1, voltbuf );
     if (n > -1){
       n = sprintf (superbuffer, "%s*%04X\n", superbuffer, gps_CRC16_checksum(superbuffer));
       radio1.write(0x07, 0x08); // turn tx on
