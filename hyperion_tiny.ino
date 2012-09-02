@@ -1,11 +1,10 @@
 /*
-Arduino code used on Hyperion flight computer 
+Arduino code used on Hyperion-tiny flight computer 
 Payload consisted of:
- * Seeedstudio stalker v328
- * Radiometrix NTX2 10mW 434.075Mhz
- * GPSbee (Ublox 5) GPS
- * 2x DS18b20 temp sensors
- * BMP085 barometer
+ * Arduino Pro Mini 3.3v
+ * RFM22b
+ * Ublox Max6 GPS (http://ava.upuaut.net/store/)
+ * 2x DS18B20 temp sensors
 
 Code by James Coxon (jacoxon@googlemail.com) based on previous code as well
 as Arduino examples
@@ -16,24 +15,20 @@ Minor modifications by Costyn van Dongen
 #include <OneWire.h>
 #include <stdio.h>
 #include <util/crc16.h>
-#include <Wire.h>
+#include <SPI.h>
+#include <RFM22.h>
 
-#include "SD.h"
 
-#define ONE_WIRE_BUS 10
-#define NTX2_SPACE_PIN 4
-#define NTX2_MARK_PIN 5
-#define NTX2_POWER_PIN 6
+#define ONE_WIRE_BUS 9
 
 TinyGPS gps;
 OneWire ds(ONE_WIRE_BUS); // DS18x20 Temperature chip i/o One-wire
 
 //Tempsensor variables
-byte address0[8] = {0x10, 0x68, 0x10, 0x36, 0x02, 0x08, 0x00, 0x9D};
-byte address1[8] = {0x10, 0xA3, 0x32, 0x36, 0x02, 0x08, 0x00, 0x81};
+byte address0[8] = {0x28, 0xD5, 0x34, 0x9A, 0x03, 0x00, 0x00, 0xB4};
+byte address1[8] = {0x28, 0x4F, 0x1F, 0x9A, 0x04, 0x00, 0x00, 0x42};
 
-byte address2[8] = {0x28, 0xE8, 0x89, 0xC2, 0x2, 0x0, 0x0, 0xDF}; // placeholder
-int temp0 = 0, temp1 = 0, temp2 = 0;
+int temp0 = 0, temp1 = 0 ;
 
 int count = 1, nightloop = 0;
 byte navmode = 99;
@@ -45,40 +40,67 @@ char latbuf[12] = "0", lonbuf[12] = "0", altbuf[12] = "0";
 long int ialt = 123;
 int numbersats = 99;
 
-// ============ Barometer ================= 
+ 
+//Setup radio on SPI with NSEL on pin 10
+rfm22 radio1(10);
+ 
+void setupRadio(){
+ 
+  digitalWrite(5, LOW);
+ 
+  delay(1000);
+ 
+  rfm22::initSPI();
+ 
+  radio1.init();
+ 
+  radio1.write(0x71, 0x00); // unmodulated carrier
+ 
+  //This sets up the GPIOs to automatically switch the antenna depending on Tx or Rx state, only needs to be done at start up
+  radio1.write(0x0b,0x12);
+  radio1.write(0x0c,0x15);
+ 
+  radio1.setFrequency(434.201);
+ 
+  //Quick test
+  radio1.write(0x07, 0x08); // turn tx on
+  delay(1000);
+  radio1.write(0x07, 0x01); // turn tx off
+ 
+}
 
-// Barometer
-// Calibration values
-#define BMP085_ADDRESS 0x77  // I2C address of BMP085
-const unsigned char OSS = 0;  // Oversampling Setting
+//Taken from the RF22 Library (http://www.open.com.au/mikem/arduino/RF22/)
+// Returns true if centre + (fhch * fhs) is within limits
+// Caution, different versions of the RF22 suport different max freq
+// so YMMV
+boolean rfm22::setFrequency(float centre)
+{
+    uint8_t fbsel = 0x40;
+    if (centre < 240.0 || centre > 960.0) // 930.0 for early silicon
+		return false;
+    if (centre >= 480.0)
+    {
+		centre /= 2;
+		fbsel |= 0x20;
+    }
+    centre /= 10.0;
+    float integerPart = floor(centre);
+    float fractionalPart = centre - integerPart;
+ 
+    uint8_t fb = (uint8_t)integerPart - 24; // Range 0 to 23
+    fbsel |= fb;
+    uint16_t fc = fractionalPart * 64000;
+    write(0x73, 0);  // REVISIT
+    write(0x74, 0);
+    write(0x75, fbsel);
+    write(0x76, fc >> 8);
+    write(0x77, fc & 0xff);
+}
 
-int ac1;
-int ac2; 
-int ac3; 
-unsigned int ac4;
-unsigned int ac5;
-unsigned int ac6;
-int b1; 
-int b2;
-int mb;
-int mc;
-int md;
-
-// b5 is calculated in bmp085GetTemperature(...), this variable is also used in bmp085GetPressure(...)
-// so ...Temperature(...) must be called before ...Pressure(...).
-long b5; 
-
-short b_temperature;
-char b_temp_s[3];
-long b_pressure;
-char b_press_s[7];
-
-
-
-// ------------------------
 // RTTY Functions - from RJHARRISON's AVR Code
 void rtty_txstring (char * string)
 {
+ 
 	/* Simple function to sent a char at a time to 
 	** rtty_txbyte function. 
 	** NB Each char is one byte (8 Bits)
@@ -91,7 +113,7 @@ void rtty_txstring (char * string)
 		c = *string++;
 	}
 }
-
+ 
 void rtty_txbyte (char c)
 {
 	/* Simple function to sent each bit of a char to 
@@ -115,31 +137,31 @@ void rtty_txbyte (char c)
 	rtty_txbit (1); // Stop bit
         rtty_txbit (1); // Stop bit
 }
-
+ 
 void rtty_txbit (int bit)
 {
 		if (bit)
 		{
 		  // high
-                    digitalWrite(NTX2_SPACE_PIN, HIGH);  
-                    digitalWrite(NTX2_MARK_PIN, LOW);
-                    digitalWrite(13,HIGH); // LED on
+                  radio1.setFrequency(434.2010);
 		}
 		else
 		{
 		  // low
-                    digitalWrite(NTX2_SPACE_PIN, LOW);
-                    digitalWrite(NTX2_MARK_PIN, HIGH);
-                    digitalWrite(13, LOW); // LED off
+                  radio1.setFrequency(434.2015);
 		}
-		//delayMicroseconds(20500); // 10000 = 100 BAUD 20150
-                //delayMicroseconds(20000); // 10000 = 100 BAUD 20150
-//                delayMicroseconds(19500); // 50baud ; 10000 = 100 BAUD 20150
-                delayMicroseconds(10000); // For 50 Baud uncomment this and the line below. 
-                delayMicroseconds(10150); // For some reason you can't do 20150 it just doesn't work.
-
-
+                delayMicroseconds(19500); // 10000 = 100 BAUD 20150
+ 
 }
+ 
+void loop(){
+      radio1.write(0x07, 0x08); // turn tx on
+      delay(5000);
+      rtty_txstring("$$$$");
+      rtty_txstring(superbuffer);
+      radio1.write(0x07, 0x01); // turn tx off
+}
+
 
 uint16_t gps_CRC16_checksum (char *string)
 {
@@ -326,22 +348,11 @@ int getTempdata(byte sensorAddress[8]) {
 
 void setup()
 {
-  pinMode(NTX2_SPACE_PIN, OUTPUT); //Radio Tx0
-  pinMode(NTX2_MARK_PIN, OUTPUT); //Radio Tx1
-  pinMode(NTX2_POWER_PIN, OUTPUT); //Radio En
-  digitalWrite(NTX2_POWER_PIN, HIGH);
   Serial.begin(9600);
   
   delay(5000); // We have to wait for a bit for the GPS to boot otherwise the commands get missed
   
   setupGPS();
-  
-    // Initialize Barometer 
-//  Serial.println( "Setting up barometer..." );
-  Wire.begin();
-  bmp085Calibration();
-//  Serial.println( "done!" );
-
 }
 
 void loop() { 
@@ -393,13 +404,9 @@ void loop() {
     temp0 = getTempdata(address0);
     temp1 = getTempdata(address1);
 
-    b_temperature = bmp085GetTemperature(bmp085ReadUT());
-    b_temperature /= 10 ;
-    b_pressure = bmp085GetPressure(bmp085ReadUP());
-    dtostrf(b_pressure,1,0,b_press_s);
     numbersats = gps.sats();
     
-    n=sprintf (superbuffer, "$$HYPERION,%d,%02d:%02d:%02d,%s,%s,%ld,%d,%d,%s,%d,%d,%d", count, hour, minute, second, latbuf, lonbuf, ialt, numbersats, navmode, b_press_s, temp0, temp1, b_temperature );
+    n=sprintf (superbuffer, "$$HYPERION,%d,%02d:%02d:%02d,%s,%s,%ld,%d,%d,%d,%d", count, hour, minute, second, latbuf, lonbuf, ialt, numbersats, navmode, temp0, temp1 );
     if (n > -1){
       n = sprintf (superbuffer, "%s*%04X\n", superbuffer, gps_CRC16_checksum(superbuffer));
       rtty_txstring(superbuffer);
@@ -408,3 +415,4 @@ void loop() {
     count++;
 
 }
+
