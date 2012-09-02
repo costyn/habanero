@@ -60,12 +60,12 @@ void setupRadio(){
   radio1.write(0x0b,0x12);
   radio1.write(0x0c,0x15);
  
-  radio1.setFrequency(434.201);
+  radio1.setFrequency(434.650);
  
   //Quick test
-  radio1.write(0x07, 0x08); // turn tx on
-  delay(1000);
-  radio1.write(0x07, 0x01); // turn tx off
+ // radio1.write(0x07, 0x08); // turn tx on
+//  delay(1000);
+//  radio1.write(0x07, 0x01); // turn tx off
  
 }
 
@@ -73,6 +73,8 @@ void setupRadio(){
 // Returns true if centre + (fhch * fhs) is within limits
 // Caution, different versions of the RF22 suport different max freq
 // so YMMV
+
+/*
 boolean rfm22::setFrequency(float centre)
 {
     uint8_t fbsel = 0x40;
@@ -96,6 +98,7 @@ boolean rfm22::setFrequency(float centre)
     write(0x76, fc >> 8);
     write(0x77, fc & 0xff);
 }
+*/
 
 // RTTY Functions - from RJHARRISON's AVR Code
 void rtty_txstring (char * string)
@@ -153,7 +156,8 @@ void rtty_txbit (int bit)
                 delayMicroseconds(19500); // 10000 = 100 BAUD 20150
  
 }
- 
+
+/* 
 void loop(){
       radio1.write(0x07, 0x08); // turn tx on
       delay(5000);
@@ -161,6 +165,7 @@ void loop(){
       rtty_txstring(superbuffer);
       radio1.write(0x07, 0x01); // turn tx off
 }
+*/
 
 
 uint16_t gps_CRC16_checksum (char *string)
@@ -184,7 +189,7 @@ uint16_t gps_CRC16_checksum (char *string)
 // Send a byte array of UBX protocol to the GPS
 void sendUBX(uint8_t *MSG, uint8_t len) {
   for(int i=0; i<len; i++) {
-    Serial.print(MSG[i], BYTE);
+    Serial.write(MSG[i]);
   }
 }
 
@@ -353,6 +358,8 @@ void setup()
   delay(5000); // We have to wait for a bit for the GPS to boot otherwise the commands get missed
   
   setupGPS();
+  
+  setupRadio() ;
 }
 
 void loop() { 
@@ -404,13 +411,15 @@ void loop() {
     temp0 = getTempdata(address0);
     temp1 = getTempdata(address1);
 
-    numbersats = gps.sats();
+    numbersats = gps.satellites();
     
     n=sprintf (superbuffer, "$$HYPERION,%d,%02d:%02d:%02d,%s,%s,%ld,%d,%d,%d,%d", count, hour, minute, second, latbuf, lonbuf, ialt, numbersats, navmode, temp0, temp1 );
     if (n > -1){
       n = sprintf (superbuffer, "%s*%04X\n", superbuffer, gps_CRC16_checksum(superbuffer));
+      radio1.write(0x07, 0x08); // turn tx on
       rtty_txstring(superbuffer);
       Serial.println(superbuffer); 
+      radio1.write(0x07, 0x01); // turn tx off
     }
     count++;
 
