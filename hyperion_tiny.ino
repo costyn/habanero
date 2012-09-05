@@ -17,6 +17,9 @@ Minor modifications by Costyn van Dongen
 #include <util/crc16.h>
 #include <SPI.h>
 #include <RFM22.h>
+#include <SoftwareSerial.h>
+ 
+
 
 
 #define ONE_WIRE_BUS 9
@@ -48,6 +51,8 @@ int resistor2 = 2157;
 float vccVoltage = 3.4;
 char voltbuf[4] = "0";
 
+
+SoftwareSerial mySerial(4, 5);
  
 //Setup radio on SPI with NSEL on pin 10
 rfm22 radio1(10);
@@ -362,12 +367,17 @@ int getTempdata(byte sensorAddress[8]) {
 void setup()
 {
   Serial.begin(9600);
+  mySerial.begin(9600);
   
+  mySerial.println("Waiting for GPS to boot");
+ 
   delay(5000); // We have to wait for a bit for the GPS to boot otherwise the commands get missed
   
   setupGPS();
+  mySerial.println("Setup GPS...");
   
   setupRadio() ;
+  mySerial.println("Setup Radio...");
 
   denominator = (float)resistor2 / (resistor1 + resistor2);
 }
@@ -434,7 +444,7 @@ void loop() {
       n = sprintf (superbuffer, "%s*%04X\n", superbuffer, gps_CRC16_checksum(superbuffer));
       radio1.write(0x07, 0x08); // turn tx on
       rtty_txstring(superbuffer);
-      Serial.println(superbuffer); 
+      mySerial.println(superbuffer); 
       radio1.write(0x07, 0x01); // turn tx off
     }
     count++;
