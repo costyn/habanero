@@ -19,9 +19,6 @@ Minor modifications by Costyn van Dongen
 #include <RFM22.h>
 #include <SoftwareSerial.h>
  
-
-
-
 #define ONE_WIRE_BUS 9
 
 TinyGPS gps;
@@ -51,67 +48,24 @@ int resistor2 = 2157;
 float vccVoltage = 3.4;
 char voltbuf[4] = "0";
 
-
+// Software serial for debugging. Connect FTDI 3.3v RX pin to pin 5 to get debugging so GPS can get a clean hardware serial.
 SoftwareSerial mySerial(4, 5);
  
 //Setup radio on SPI with NSEL on pin 10
 rfm22 radio1(10);
  
 void setupRadio(){
- 
-  digitalWrite(5, LOW);
- 
-  delay(1000);
- 
   rfm22::initSPI();
- 
   radio1.init();
- 
   radio1.write(0x71, 0x00); // unmodulated carrier
- 
-  //This sets up the GPIOs to automatically switch the antenna depending on Tx or Rx state, only needs to be done at start up
-  radio1.write(0x0b,0x12);
-  radio1.write(0x0c,0x15);
- 
-  radio1.setFrequency(434.650);
- 
-  //Quick test
- // radio1.write(0x07, 0x08); // turn tx on
-//  delay(1000);
-//  radio1.write(0x07, 0x01); // turn tx off
+  //This sets up the GPIOs to automatically switch the antenna depending on Tx or Rx state, only needs to be done at start up. 0b and 0c are swapped because GPIO0 and GPIO1 are swapped connected to TX_ANT and RX_ANT
+  radio1.write(0x0b,0x15);
+  radio1.write(0x0c,0x12);
+  radio1.setFrequency(434.650);  // frequency
+  radio1.write(0x07, 0x08); // turn tx on
+  radio1.write(0x6D, 0x04);// turn tx low power 14db = 25mW
  
 }
-
-//Taken from the RF22 Library (http://www.open.com.au/mikem/arduino/RF22/)
-// Returns true if centre + (fhch * fhs) is within limits
-// Caution, different versions of the RF22 suport different max freq
-// so YMMV
-
-/*
-boolean rfm22::setFrequency(float centre)
-{
-    uint8_t fbsel = 0x40;
-    if (centre < 240.0 || centre > 960.0) // 930.0 for early silicon
-		return false;
-    if (centre >= 480.0)
-    {
-		centre /= 2;
-		fbsel |= 0x20;
-    }
-    centre /= 10.0;
-    float integerPart = floor(centre);
-    float fractionalPart = centre - integerPart;
- 
-    uint8_t fb = (uint8_t)integerPart - 24; // Range 0 to 23
-    fbsel |= fb;
-    uint16_t fc = fractionalPart * 64000;
-    write(0x73, 0);  // REVISIT
-    write(0x74, 0);
-    write(0x75, fbsel);
-    write(0x76, fc >> 8);
-    write(0x77, fc & 0xff);
-}
-*/
 
 // RTTY Functions - from RJHARRISON's AVR Code
 void rtty_txstring (char * string)
@@ -158,28 +112,17 @@ void rtty_txbit (int bit)
 {
 		if (bit)
 		{
-		  // high
-                  radio1.setFrequency(434.2010);
+		  // high; 0x073 is least significant bit of frequency register, 2x156Hz; 156Hz = smallest frequency adjustment possible on the RFM22b
+                  radio1.write(0x073, 0x03);
 		}
 		else
 		{
 		  // low
-                  radio1.setFrequency(434.2015);
+                  radio1.write(0x073, 0x00);
 		}
-                delayMicroseconds(19500); // 10000 = 100 BAUD 20150
+                delayMicroseconds(19500); // 10000 = 100 BAUD ; 20150 = 50
  
 }
-
-/* 
-void loop(){
-      radio1.write(0x07, 0x08); // turn tx on
-      delay(5000);
-      rtty_txstring("$$$$");
-      rtty_txstring(superbuffer);
-      radio1.write(0x07, 0x01); // turn tx off
-}
-*/
-
 
 uint16_t gps_CRC16_checksum (char *string)
 {
@@ -435,6 +378,7 @@ void loop() {
 
     float voltage;
     voltage = analogRead(voltPin);
+    mySerial.println( voltage ) ;
     voltage = (voltage / 1024) * vccVoltage;
     voltage = voltage / denominator;
     dtostrf(voltage,4,2,voltbuf); // convert to string
@@ -442,10 +386,10 @@ void loop() {
     n=sprintf (superbuffer, "$$HYPERION,%d,%02d:%02d:%02d,%s,%s,%ld,%d,%d,%d,%d,%s", count, hour, minute, second, latbuf, lonbuf, ialt, numbersats, navmode, temp0, temp1, voltbuf );
     if (n > -1){
       n = sprintf (superbuffer, "%s*%04X\n", superbuffer, gps_CRC16_checksum(superbuffer));
-      radio1.write(0x07, 0x08); // turn tx on
+//      radio1.write(0x07, 0x08); // turn tx on
       rtty_txstring(superbuffer);
       mySerial.println(superbuffer); 
-      radio1.write(0x07, 0x01); // turn tx off
+//      radio1.write(0x07, 0x01); // turn tx off
     }
     count++;
 
