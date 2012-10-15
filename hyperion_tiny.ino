@@ -9,7 +9,7 @@ Payload consisted of:
 Code by James Coxon (jacoxon@googlemail.com) based on previous code as well
 as Arduino examples
 
-Minor modifications by Costyn van Dongen
+Modifications by Costyn van Dongen
 */
 #include <TinyGPS.h>
 #include <OneWire.h>
@@ -30,10 +30,11 @@ byte address1[8] = {0x28, 0x4F, 0x1F, 0x9A, 0x03, 0x00, 0x00, 0x42};
 
 int temp0 = 0, temp1 = 0 ;
 
-int count = 1, nightloop = 0;
+int count = 1;
 byte navmode = 99;
 float flat, flon;
 unsigned long date, time, chars, age;
+unsigned short sentences, failed_checksum;
 
 int hour = 0 , minute = 0 , second = 0, oldsecond = 0;
 char latbuf[12] = "0", lonbuf[12] = "0", altbuf[12] = "0";
@@ -317,10 +318,10 @@ void setup()
   delay(5000); // We have to wait for a bit for the GPS to boot otherwise the commands get missed
   
   setupGPS();
-  mySerial.println("Setup GPS...");
+  mySerial.println("Setup GPS complete.");
   
   setupRadio() ;
-  mySerial.println("Setup Radio...");
+  mySerial.println("Setup Radio complete...");
 
   denominator = (float)resistor2 / (resistor1 + resistor2);
 }
@@ -332,6 +333,7 @@ void loop() {
     
     if((count % 10) == 0) {
      if(navmode != 6){
+       mySerial.println("GPS has no lock. Running setup...");
        setupGPS();
        delay(1000);
      }
@@ -344,9 +346,11 @@ void loop() {
       int c = Serial.read();
       if (gps.encode(c))
       {
+         mySerial.println("gps.encode is true");
         //Get Data from GPS library
         //Get Time and split it
         gps.get_datetime(&date, &time, &age);
+        mySerial.println(time);
         hour = (time / 1000000);
         minute = ((time - (hour * 1000000)) / 10000);
         second = ((time - ((hour * 1000000) + (minute * 10000))));
@@ -368,13 +372,25 @@ void loop() {
       // +/- altitude in 
       ialt = (gps.altitude() / 100);   
       itoa(ialt, altbuf, 10);
+      }
     }
+
+    if( ! Serial.available() ) {
+         gps.stats(&chars, &sentences, &failed_checksum);
+        mySerial.print( "chars = " ) ;
+         mySerial.println( chars ) ;
+          mySerial.print( "sentences = " ) ;
+         mySerial.println( sentences ) ;
+      
+          mySerial.print( "failed checksum = " ) ;
+         mySerial.println( failed_checksum ) ;
     }
+
     
     temp0 = getTempdata(address0);
     temp1 = getTempdata(address1);
 
-    numbersats = gps.satellites();
+    numbersats = gps.sats();
 
     float voltage;
     voltage = analogRead(voltPin);
@@ -383,7 +399,7 @@ void loop() {
     voltage = voltage / denominator;
     dtostrf(voltage,4,2,voltbuf); // convert to string
     
-    n=sprintf (superbuffer, "$$HYPERION,%d,%02d:%02d:%02d,%s,%s,%ld,%d,%d,%d,%d,%s", count, hour, minute, second, latbuf, lonbuf, ialt, numbersats, navmode, temp0, temp1, voltbuf );
+    n=sprintf (superbuffer, "$$$HYPERION,%d,%02d:%02d:%02d,%s,%s,%ld,%d,%d,%d,%d,%s", count, hour, minute, second, latbuf, lonbuf, ialt, numbersats, navmode, temp0, temp1, voltbuf );
     if (n > -1){
       n = sprintf (superbuffer, "%s*%04X\n", superbuffer, gps_CRC16_checksum(superbuffer));
 //      radio1.write(0x07, 0x08); // turn tx on
