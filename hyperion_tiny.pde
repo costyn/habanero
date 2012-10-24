@@ -46,7 +46,7 @@ const int voltPin = 3;
 float denominator;
 int resistor1 = 9790;
 int resistor2 = 2157;
-float vccVoltage = 3.4;
+float vccVoltage = 1.1;
 char voltbuf[4] = "0";
 
 // Software serial for debugging. Connect FTDI 3.3v RX pin to pin 5 to get debugging so GPS can get a clean hardware serial.
@@ -331,9 +331,11 @@ void loop() {
     char checksum [10];
     int n;
     
-    if((count % 10) == 0) {
+    if((count % 10) == 0 ) {
+     checkNAV();
+     delay(1000);
      if(navmode != 6){
-       mySerial.println("GPS has no lock. Running setup...");
+       mySerial.println("GPS not in navmode 6. Running setup...");
        setupGPS();
        delay(1000);
      }
@@ -375,16 +377,16 @@ void loop() {
       }
     }
 
-    if( ! Serial.available() ) {
-         gps.stats(&chars, &sentences, &failed_checksum);
-        mySerial.print( "chars = " ) ;
-         mySerial.println( chars ) ;
-          mySerial.print( "sentences = " ) ;
-         mySerial.println( sentences ) ;
+//    if( ! Serial.available() ) {
+//         gps.stats(&chars, &sentences, &failed_checksum);
+//        mySerial.print( "chars = " ) ;
+//         mySerial.println( chars ) ;
+//          mySerial.print( "sentences = " ) ;
+//         mySerial.println( sentences ) ;
       
-          mySerial.print( "failed checksum = " ) ;
-         mySerial.println( failed_checksum ) ;
-    }
+//          mySerial.print( "failed checksum = " ) ;
+//         mySerial.println( failed_checksum ) ;
+//    }
 
     
     temp0 = getTempdata(address0);
@@ -394,7 +396,7 @@ void loop() {
 
     float voltage;
     voltage = analogRead(voltPin);
-    mySerial.println( voltage ) ;
+//    mySerial.println( voltage, DEC ) ;
     voltage = (voltage / 1024) * vccVoltage;
     voltage = voltage / denominator;
     dtostrf(voltage,4,2,voltbuf); // convert to string
