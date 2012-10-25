@@ -1,16 +1,14 @@
 /*
-Arduino code used on Hyperion-tiny flight computer 
+Arduino code used on Habanero flight computer 
 Payload consisted of:
  * Arduino Pro Mini 3.3v
  * RFM22b
  * Ublox Max6 GPS (http://ava.upuaut.net/store/)
  * 2x DS18B20 temp sensors
 
-Code by James Coxon (jacoxon@googlemail.com) based on previous code as well
-as Arduino examples
-
-Modifications by Costyn van Dongen
+Code mostly by James Coxon. Modified by Costyn van Dongen.
 */
+
 #include <TinyGPS.h>
 #include <OneWire.h>
 #include <stdio.h>
@@ -20,49 +18,55 @@ Modifications by Costyn van Dongen
 #include <SoftwareSerial.h>
  
 #define ONE_WIRE_BUS 9
+#define RFM_NSEL_PIN 10
+#define VOLT_DIV_PIN 3
 
+// Objects
 TinyGPS gps;
 OneWire ds(ONE_WIRE_BUS); // DS18x20 Temperature chip i/o One-wire
-
-//Tempsensor variables
-byte address0[8] = {0x28, 0xD5, 0x34, 0x9A, 0x03, 0x00, 0x00, 0xB4};
-byte address1[8] = {0x28, 0x4F, 0x1F, 0x9A, 0x03, 0x00, 0x00, 0x42};
-
-int temp0 = 0, temp1 = 0 ;
-
-int count = 1;
-byte navmode = 99;
-float flat, flon;
-unsigned long date, time, chars, age;
-unsigned short sentences, failed_checksum;
-
-int hour = 0 , minute = 0 , second = 0, oldsecond = 0;
-char latbuf[12] = "0", lonbuf[12] = "0", altbuf[12] = "0";
-long int ialt = 123;
-int numbersats = 99;
-
-// Voltage divider stuff:
-const int voltPin = 3;
-float denominator;
-int resistor1 = 9790;
-int resistor2 = 2157;
-float vccVoltage = 1.1;
-char voltbuf[4] = "0";
 
 // Software serial for debugging. Connect FTDI 3.3v RX pin to pin 5 to get debugging so GPS can get a clean hardware serial.
 SoftwareSerial mySerial(4, 5);
  
 //Setup radio on SPI with NSEL on pin 10
-rfm22 radio1(10);
+rfm22 radio1(RFM_NSEL_PIN);
+
+//Tempsensor variables
+byte address0[8] = {0x28, 0xD5, 0x34, 0x9A, 0x03, 0x00, 0x00, 0xB4};
+byte address1[8] = {0x28, 0x4F, 0x1F, 0x9A, 0x03, 0x00, 0x00, 0x42};
+int temp0 = 0, temp1 = 0 ;
+
+// GPS Variables
+int count = 1;
+byte navmode = 0;
+float flat, flon;
+unsigned long date, time, chars, age;
+unsigned short sentences, failed_checksum;
+int hour = 0 , minute = 0 , second = 0, oldsecond = 0;
+char latbuf[12] = "0", lonbuf[12] = "0", altbuf[12] = "0";
+long int ialt = 123;
+int numbersats = 0;
+
+// Voltage divider stuff:
+const int voltPin = VOLT_DIV_PIN;
+const int resistor1 = 9790;
+const int resistor2 = 2157;
+const float vccVoltage = 3.3;
+float denominator;
+float analogVoltage;
+float voltage;
+char voltbuf[4] = "0";
+
  
 void setupRadio(){
   rfm22::initSPI();
   radio1.init();
   radio1.write(0x71, 0x00); // unmodulated carrier
-  //This sets up the GPIOs to automatically switch the antenna depending on Tx or Rx state, only needs to be done at start up. 0b and 0c are swapped because GPIO0 and GPIO1 are swapped connected to TX_ANT and RX_ANT
+  //This sets up the GPIOs to automatically switch the antenna depending on Tx or Rx state, only needs to be done at start up. 
+  // 0b and 0c are swapped (compared to other code) because GPIO0 and GPIO1 are swapped connected to TX_ANT and RX_ANT on this HAB supplies breakout.
   radio1.write(0x0b,0x15);
   radio1.write(0x0c,0x12);
-  radio1.setFrequency(434.650);  // frequency
+  radio1.setFrequency(434.650);  // frequency, we modulate it in rtty_txbit()
   radio1.write(0x07, 0x08); // turn tx on
   radio1.write(0x6D, 0x04);// turn tx low power 14db = 25mW
  
@@ -331,7 +335,7 @@ void loop() {
     char checksum [10];
     int n;
     
-    if((count % 10) == 0 ) {
+    if((count % 5) == 0 && navmode != 6 ) {
      checkNAV();
      delay(1000);
      if(navmode != 6){
@@ -352,7 +356,6 @@ void loop() {
         //Get Data from GPS library
         //Get Time and split it
         gps.get_datetime(&date, &time, &age);
-        mySerial.println(time);
         hour = (time / 1000000);
         minute = ((time - (hour * 1000000)) / 10000);
         second = ((time - ((hour * 1000000) + (minute * 10000))));
@@ -387,29 +390,23 @@ void loop() {
 //          mySerial.print( "failed checksum = " ) ;
 //         mySerial.println( failed_checksum ) ;
 //    }
-
     
     temp0 = getTempdata(address0);
     temp1 = getTempdata(address1);
 
     numbersats = gps.sats();
 
-    float voltage;
-    voltage = analogRead(voltPin);
-//    mySerial.println( voltage, DEC ) ;
-    voltage = (voltage / 1024) * vccVoltage;
-    voltage = voltage / denominator;
+    analogVoltage = analogRead(voltPin);
+    voltage = ((analogVoltage / 1024) * vccVoltage)/denominator;
     dtostrf(voltage,4,2,voltbuf); // convert to string
     
-    n=sprintf (superbuffer, "$$$HYPERION,%d,%02d:%02d:%02d,%s,%s,%ld,%d,%d,%d,%d,%s", count, hour, minute, second, latbuf, lonbuf, ialt, numbersats, navmode, temp0, temp1, voltbuf );
+    n=sprintf( superbuffer, "$$HABANERO,%d,%02d:%02d:%02d,%s,%s,%ld,%d,%d,%d,%d,%s", count, hour, minute, second, latbuf, lonbuf, ialt, numbersats, navmode, temp0, temp1, voltbuf );
     if (n > -1){
       n = sprintf (superbuffer, "%s*%04X\n", superbuffer, gps_CRC16_checksum(superbuffer));
-//      radio1.write(0x07, 0x08); // turn tx on
       rtty_txstring(superbuffer);
-      mySerial.println(superbuffer); 
-//      radio1.write(0x07, 0x01); // turn tx off
+      Serial.println(superbuffer); 
     }
-    count++;
 
+    count++;
 }
 
