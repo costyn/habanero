@@ -32,8 +32,8 @@ SoftwareSerial mySerial(4, 5);
 rfm22 radio1(RFM_NSEL_PIN);
 
 //Tempsensor variables
-byte address0[8] = {0x28, 0xD5, 0x34, 0x9A, 0x03, 0x00, 0x00, 0xB4};
-byte address1[8] = {0x28, 0x4F, 0x1F, 0x9A, 0x03, 0x00, 0x00, 0x42};
+const byte address0[8] = {0x28, 0xD5, 0x34, 0x9A, 0x03, 0x00, 0x00, 0xB4};
+const byte address1[8] = {0x28, 0x4F, 0x1F, 0x9A, 0x03, 0x00, 0x00, 0x42};
 int temp0 = 0, temp1 = 0 ;
 
 // GPS Variables
@@ -319,7 +319,7 @@ void setup()
   
   mySerial.println("Waiting for GPS to boot");
  
-  delay(5000); // We have to wait for a bit for the GPS to boot otherwise the commands get missed
+  delay(3000); // We have to wait for a bit for the GPS to boot otherwise the commands get missed
   
   setupGPS();
   mySerial.println("Setup GPS complete.");
@@ -379,17 +379,6 @@ void loop() {
       itoa(ialt, altbuf, 10);
       }
     }
-
-//    if( ! Serial.available() ) {
-//         gps.stats(&chars, &sentences, &failed_checksum);
-//        mySerial.print( "chars = " ) ;
-//         mySerial.println( chars ) ;
-//          mySerial.print( "sentences = " ) ;
-//         mySerial.println( sentences ) ;
-      
-//          mySerial.print( "failed checksum = " ) ;
-//         mySerial.println( failed_checksum ) ;
-//    }
     
     temp0 = getTempdata(address0);
     temp1 = getTempdata(address1);
