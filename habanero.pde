@@ -32,8 +32,8 @@ SoftwareSerial mySerial(4, 5);
 rfm22 radio1(RFM_NSEL_PIN);
 
 //Tempsensor variables
-const byte address0[8] = {0x28, 0xD5, 0x34, 0x9A, 0x03, 0x00, 0x00, 0xB4};
-const byte address1[8] = {0x28, 0x4F, 0x1F, 0x9A, 0x03, 0x00, 0x00, 0x42};
+byte address0[8] = {0x28, 0xD5, 0x34, 0x9A, 0x03, 0x00, 0x00, 0xB4};
+byte address1[8] = {0x28, 0x4F, 0x1F, 0x9A, 0x03, 0x00, 0x00, 0x42};
 int temp0 = 0, temp1 = 0 ;
 
 // GPS Variables
@@ -51,11 +51,11 @@ int numbersats = 0;
 const int voltPin = VOLT_DIV_PIN;
 const int resistor1 = 9790;
 const int resistor2 = 2157;
-const float vccVoltage = 3.3;
+const float vccVoltage = 3.323;
 float denominator;
 float analogVoltage;
 float voltage;
-char voltbuf[4] = "0";
+char voltbuf[6] = "0";
 
  
 void setupRadio(){
