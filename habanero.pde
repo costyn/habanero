@@ -334,7 +334,8 @@ void loop() {
        setupGPS();
        delay(1000);
      }
-     Serial.println("$PUBX,00*33"); //Poll GPS to clear weird partial string after checknav.
+     Serial.println("$PUBX,00*33"); //Poll GPS twice to clear weird partial string after checknav.
+     Serial.println("$PUBX,00*33");
    }
    
     Serial.println("$PUBX,00*33"); //Poll GPS
