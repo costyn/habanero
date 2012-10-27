@@ -15,7 +15,7 @@ Code mostly by James Coxon. Modified by Costyn van Dongen.
 #include <util/crc16.h>
 #include <SPI.h>
 #include <RFM22.h>
-#include <SoftwareSerial.h>
+// #include <SoftwareSerial.h>
  
 #define ONE_WIRE_BUS 9
 #define RFM_NSEL_PIN 10
@@ -26,7 +26,7 @@ TinyGPS gps;
 OneWire ds(ONE_WIRE_BUS); // DS18x20 Temperature chip i/o One-wire
 
 // Software serial for debugging. Connect FTDI 3.3v RX pin to pin 5 to get debugging so GPS can get a clean hardware serial.
-SoftwareSerial mySerial(4, 5);
+// SoftwareSerial mySerial(4, 5);
  
 //Setup radio on SPI with NSEL on pin 10
 rfm22 radio1(RFM_NSEL_PIN);
@@ -56,7 +56,6 @@ float denominator;
 float analogVoltage;
 float voltage;
 char voltbuf[6] = "0";
-
  
 void setupRadio(){
   rfm22::initSPI();
@@ -264,7 +263,6 @@ void setupGPS() {
   sendUBX(setNav, sizeof(setNav)/sizeof(uint8_t));
   
   getUBX_ACK(setNav);
-  
 }
 
 // gets temperature data from onewire sensor network, need to supply byte address, it'll check to see what type of sensor and convert appropriately
@@ -302,7 +300,6 @@ int getTempdata(byte sensorAddress[8]) {
     Tc_100 = (6 * TReading) + TReading / 4;    // multiply by (100 * 0.0625) or 6.25
   }
   
-  
   Whole = Tc_100 / 100;  // separate off the whole and fractional portions
 
   if (SignBit) // If its negative
@@ -315,17 +312,10 @@ int getTempdata(byte sensorAddress[8]) {
 void setup()
 {
   Serial.begin(9600);
-  mySerial.begin(9600);
-  
-  mySerial.println("Waiting for GPS to boot");
- 
   delay(3000); // We have to wait for a bit for the GPS to boot otherwise the commands get missed
   
   setupGPS();
-  mySerial.println("Setup GPS complete.");
-  
   setupRadio() ;
-  mySerial.println("Setup Radio complete...");
 
   denominator = (float)resistor2 / (resistor1 + resistor2);
 }
@@ -335,14 +325,16 @@ void loop() {
     char checksum [10];
     int n;
     
-    if((count % 5) == 0 && navmode != 6 ) {
+    // Check if navMode is still in airborne(6) mode.
+    if((count % 10) == 0 ) {
      checkNAV();
      delay(1000);
      if(navmode != 6){
-       mySerial.println("GPS not in navmode 6. Running setup...");
+//       mySerial.println("GPS not in navmode 6. Running setup...");
        setupGPS();
        delay(1000);
      }
+     Serial.println("$PUBX,00*33"); //Poll GPS to clear weird partial string after checknav.
    }
    
     Serial.println("$PUBX,00*33"); //Poll GPS
@@ -352,7 +344,6 @@ void loop() {
       int c = Serial.read();
       if (gps.encode(c))
       {
-         mySerial.println("gps.encode is true");
         //Get Data from GPS library
         //Get Time and split it
         gps.get_datetime(&date, &time, &age);
