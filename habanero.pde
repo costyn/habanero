@@ -65,7 +65,7 @@ void setupRadio(){
   // 0b and 0c are swapped (compared to other code) because GPIO0 and GPIO1 are swapped connected to TX_ANT and RX_ANT on this HAB supplies breakout.
   radio1.write(0x0b,0x15);
   radio1.write(0x0c,0x12);
-  radio1.setFrequency(434.650);  // frequency, we modulate it in rtty_txbit()
+  radio1.setFrequency(434.250);  // frequency, we modulate it in rtty_txbit()
   radio1.write(0x07, 0x08); // turn tx on
   radio1.write(0x6D, 0x04);// turn tx low power 14db = 25mW
  
@@ -316,8 +316,8 @@ void setup()
   
   setupGPS();
   setupRadio() ;
-
-  denominator = (float)resistor2 / (resistor1 + resistor2);
+ 
+  denominator = (float)resistor2 / (resistor1 + resistor2); // calculate denominator to use in 
 }
 
 void loop() { 
@@ -385,7 +385,6 @@ void loop() {
     if (n > -1){
       n = sprintf (superbuffer, "%s*%04X\n", superbuffer, gps_CRC16_checksum(superbuffer));
       rtty_txstring(superbuffer);
-      Serial.println(superbuffer); 
     }
 
     count++;
