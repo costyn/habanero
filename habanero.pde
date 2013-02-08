@@ -124,7 +124,8 @@ void rtty_txbit (int bit)
 		  // low
                   radio1.write(0x073, 0x00);
 		}
-                delayMicroseconds(19500); // 10000 = 100 BAUD ; 20150 = 50
+                delayMicroseconds(10000); // delayMicroseconds only gives accurate delays up to 16383ms, so we split it
+                delayMicroseconds(10150); // 
  
 }
 
