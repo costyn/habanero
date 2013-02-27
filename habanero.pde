@@ -124,8 +124,9 @@ void rtty_txbit (int bit)
 		  // low
                   radio1.write(0x073, 0x00);
 		}
-                delayMicroseconds(10000); // delayMicroseconds only gives accurate delays up to 16383ms, so we split it
-                delayMicroseconds(10150); // 
+               delayMicroseconds(9750); // 100 baud
+//                delayMicroseconds(10000); // delayMicroseconds only gives accurate delays up to 16383ms, so we split it
+//                delayMicroseconds(10150); // 
  
 }
 
@@ -382,7 +383,7 @@ void loop() {
     voltage = ((analogVoltage / 1024) * vccVoltage)/denominator;
     dtostrf(voltage,4,2,voltbuf); // convert to string
     
-    n=sprintf( superbuffer, "$$HABANERO,%d,%02d:%02d:%02d,%s,%s,%ld,%d,%d,%d,%d,%s", count, hour, minute, second, latbuf, lonbuf, ialt, numbersats, navmode, temp0, temp1, voltbuf );
+    n=sprintf( superbuffer, "$$HABANERO,%d,%02d:%02d:%02d,%s,%s,%ld,%d,%d,%d,%d,%s", count, hour, minute, second, latbuf, lonbuf, ialt, numbersats, navmode, temp1, temp0, voltbuf );
     if (n > -1){
       n = sprintf (superbuffer, "%s*%04X\n", superbuffer, gps_CRC16_checksum(superbuffer));
       rtty_txstring(superbuffer);
