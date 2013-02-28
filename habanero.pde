@@ -20,6 +20,7 @@ Code mostly by James Coxon. Modified by Costyn van Dongen.
 #define ONE_WIRE_BUS 9
 #define RFM_NSEL_PIN 10
 #define VOLT_DIV_PIN 3
+#define RFM22B_SDN 8
 
 // Objects
 TinyGPS gps;
@@ -58,6 +59,7 @@ float voltage;
 char voltbuf[6] = "0";
  
 void setupRadio(){
+  digitalWrite(RFM22B_SDN, LOW);
   rfm22::initSPI();
   radio1.init();
   radio1.write(0x71, 0x00); // unmodulated carrier
@@ -69,6 +71,13 @@ void setupRadio(){
   radio1.write(0x07, 0x08); // turn tx on
   radio1.write(0x6D, 0x04);// turn tx low power 14db = 25mW
  
+}
+
+void resetRadio(){
+  digitalWrite(RFM22B_SDN, HIGH);
+  delay(1500);
+  digitalWrite(RFM22B_SDN, HIGH);
+  setupRadio();
 }
 
 // RTTY Functions - from RJHARRISON's AVR Code
@@ -315,7 +324,8 @@ void setup()
 {
   Serial.begin(9600);
   delay(3000); // We have to wait for a bit for the GPS to boot otherwise the commands get missed
-  
+  pinMode(RFM22B_SDN, OUTPUT);  
+
   setupGPS();
   setupRadio() ;
  
@@ -338,6 +348,8 @@ void loop() {
      }
      Serial.println("$PUBX,00*33"); //Poll GPS twice to clear weird partial string after checknav.
      Serial.println("$PUBX,00*33");
+  
+    resetRadio() ;
    }
    
     Serial.println("$PUBX,00*33"); //Poll GPS
