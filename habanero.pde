@@ -75,8 +75,9 @@ void setupRadio(){
 
 void resetRadio(){
   digitalWrite(RFM22B_SDN, HIGH);
-  delay(1500);
-  digitalWrite(RFM22B_SDN, HIGH);
+  delay(1000);
+  digitalWrite(RFM22B_SDN, LOW);
+  delay(1000);
   setupRadio();
 }
 
