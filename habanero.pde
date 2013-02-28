@@ -59,7 +59,7 @@ float voltage;
 char voltbuf[6] = "0";
  
 void setupRadio(){
-  digitalWrite(RFM22B_SDN, LOW);
+  digitalWrite(8, LOW);
   rfm22::initSPI();
   radio1.init();
   radio1.write(0x71, 0x00); // unmodulated carrier
@@ -74,11 +74,9 @@ void setupRadio(){
 }
 
 void resetRadio(){
-  digitalWrite(RFM22B_SDN, HIGH);
+  digitalWrite(8, HIGH);
   delay(1000);
-  digitalWrite(RFM22B_SDN, LOW);
-  delay(1000);
-  setupRadio();
+  digitalWrite(8, LOW);
 }
 
 // RTTY Functions - from RJHARRISON's AVR Code
@@ -325,7 +323,7 @@ void setup()
 {
   Serial.begin(9600);
   delay(3000); // We have to wait for a bit for the GPS to boot otherwise the commands get missed
-  pinMode(RFM22B_SDN, OUTPUT);  
+  pinMode(8, OUTPUT);  
 
   setupGPS();
   setupRadio() ;
@@ -349,8 +347,12 @@ void loop() {
      }
      Serial.println("$PUBX,00*33"); //Poll GPS twice to clear weird partial string after checknav.
      Serial.println("$PUBX,00*33");
-  
-    resetRadio() ;
+    }
+    
+  if((count % 50) == 0 ) {
+    resetRadio();
+    delay(1000) ;
+    setupRadio();
    }
    
     Serial.println("$PUBX,00*33"); //Poll GPS
